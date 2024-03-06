@@ -5,13 +5,11 @@ import javafx.beans.binding.BooleanBinding;
 import javafx.beans.binding.StringExpression;
 import javafx.beans.property.*;
 
-import java.util.concurrent.Callable;
-
 public class TicTacToeModel {
     private static final int BOARD_WIDTH =  3;
     private static final int BOARD_HEIGHT =  3;
     private static final int WINNING_COUNT =  3;
-    private static final int CASES_NUMBER =  BOARD_WIDTH *  BOARD_HEIGHT;
+    private static final int TOTAL_SQUARES = BOARD_WIDTH  * BOARD_HEIGHT ;
 
     private final ObjectProperty<Owner> turn;
     private final ObjectProperty<Owner> winner;
@@ -24,143 +22,122 @@ public class TicTacToeModel {
 
     private final StringProperty endOfGameMessage;
 
-    private int count;
+    private int movesMade;
 
     private TicTacToeModel() {
         board = new ObjectProperty[BOARD_WIDTH][BOARD_HEIGHT];
         winningBoard = new BooleanProperty[BOARD_WIDTH][BOARD_HEIGHT];
         firstPlayerCount = new SimpleIntegerProperty(0);
         secondPlayerCount = new SimpleIntegerProperty(0);
-        emptyCount = new SimpleIntegerProperty(CASES_NUMBER);
+        emptyCount = new SimpleIntegerProperty(TOTAL_SQUARES);
         endOfGameMessage = new SimpleStringProperty("");
 
-        for (int i =  0; i < BOARD_WIDTH; i++) {
-            for (int j =  0; j < BOARD_HEIGHT; j++) {
+        initializeBoard();
+        turn = new SimpleObjectProperty<>(Owner.FIRST);
+        winner = new SimpleObjectProperty<>(Owner.NONE);
+        movesMade = 0;
+    }
+
+    private void initializeBoard() {
+        for (int i = 0; i < BOARD_WIDTH; i++) {
+            for (int j = 0; j < BOARD_HEIGHT; j++) {
                 board[i][j] = new SimpleObjectProperty<>(Owner.NONE);
                 winningBoard[i][j] = new SimpleBooleanProperty(false);
             }
         }
-
-        turn = new SimpleObjectProperty<>(Owner.FIRST);
-        winner = new SimpleObjectProperty<>(Owner.NONE);
-        count = 0;
     }
 
-    /**
-     * @return la seule instance possible du jeu. */
     public static TicTacToeModel getInstance() {
         return TicTacToeModelHolder.INSTANCE;
     }
 
-    /**
-     * Classe interne selon le pattern singleton.
-     */
     private static class TicTacToeModelHolder {
         private static final TicTacToeModel INSTANCE = new TicTacToeModel();
     }
 
     public void restart() {
-        for (int i =  0; i < BOARD_WIDTH; i++) {
-            for (int j =  0; j < BOARD_HEIGHT; j++) {
-                board[i][j] = new SimpleObjectProperty<>(Owner.NONE);
-                winningBoard[i][j] = new SimpleBooleanProperty(false);
-            }
-        }
+        initializeBoard();
         turn.set(Owner.FIRST);
         winner.set(Owner.NONE);
-        count = 0;
-        this.emptyCount.set(CASES_NUMBER);
-        this.firstPlayerCount.set(0);
-        this.secondPlayerCount.set(0);
-        this.endOfGameMessage.set("");
+        movesMade = 0;
+        emptyCount.set(TOTAL_SQUARES);
+        firstPlayerCount.set(0);
+        secondPlayerCount.set(0);
+        endOfGameMessage.set("");
     }
 
     public final ObjectProperty<Owner> turnProperty() {
         return turn;
     }
 
-    public final ObjectProperty<Owner> getSquare(int row, int column){
+    public final ObjectProperty<Owner> getSquare(int row, int column) {
         return board[row][column];
     }
 
-    public final BooleanProperty getWinningSquare(int row, int column){
+    public final BooleanProperty getWinningSquare(int row, int column) {
         return winningBoard[row][column];
     }
 
     public void setWinner(Owner winner) {
-       this.winner.set(winner);
+        this.winner.set(winner);
+    }
+
+    public BooleanProperty[][] getWinningBoard() {
+        return winningBoard;
     }
 
     public boolean validSquare(int row, int column) {
-        return row >= 0 && column >= 0 && row<3 && column < 3;
+        return row >= 0 && column >= 0 && row < BOARD_WIDTH && column < BOARD_HEIGHT;
     }
 
     public void nextPlayer() {
-        Owner next = turn.get().opposite();
-        turn.set(next);
+        turn.set(turn.get().opposite());
     }
 
-    /**
-     * Jouer dans la case (row, column) quand c’est possible.
-     */
     public void play(int row, int column) {
-        if(legalMove(row, column).get()) {
+        if (legalMove(row, column).get()) {
             board[row][column].set(turn.get());
-            if(turn.get() == Owner.SECOND){
-                this.secondPlayerCount.set(secondPlayerCount.get() + 1);
-            } else if(turn.get() == Owner.FIRST){
-                this.firstPlayerCount.set(firstPlayerCount.get() + 1);
-            }
-            count++;
+            updatePlayerCount();
+            movesMade++;
             nextPlayer();
-            if(count >= 5) {
-                setWinner(this.getWinner());
+            if (movesMade >= 5) {
+                setWinner(getWinner());
                 getEndOfGameMessage();
+                getWinningSquare(row, column);
             }
-            this.emptyCount.set(emptyCount.get() - 1);
+            emptyCount.set(emptyCount.get() - 1);
         }
     }
 
-    /**
-     * @return true s’il est possible de jouer dans la case
-     * c’est-à-dire la case est libre et le jeu n’est pas terminé */
-    public BooleanBinding legalMove(int row, int column) {
-        boolean isLegalMove = validSquare(row, column) && !gameOver().get() && board[row][column].get().equals(Owner.NONE);
-        return Bindings.createBooleanBinding((Callable<Boolean>) () -> isLegalMove);
+    private void updatePlayerCount() {
+        if (turn.get() == Owner.SECOND) {
+            secondPlayerCount.set(secondPlayerCount.get() + 1);
+        } else if (turn.get() == Owner.FIRST) {
+            firstPlayerCount.set(firstPlayerCount.get() + 1);
+        }
     }
 
-    /**
-     * Cette fonction ne doit donner le bon résultat que si le jeu
-     * est terminé. L’affichage peut être caché avant la fin du jeu.
-     *
-     * @return résultat du jeu sous forme de texte
-     */
+    public BooleanBinding legalMove(int row, int column) {
+        return Bindings.createBooleanBinding(() -> validSquare(row, column) && !gameOver().get() && board[row][column].get().equals(Owner.NONE));
+    }
+
     public final StringExpression getEndOfGameMessage() {
-        if (winner.get().equals(Owner.FIRST)){
+        if (winner.get().equals(Owner.FIRST)) {
             endOfGameMessage.set("Game Over. Le gagnant est le premier joueur.");
-        } else if (winner.get().equals(Owner.SECOND)){
+        } else if (winner.get().equals(Owner.SECOND)) {
             endOfGameMessage.set("Game Over. Le gagnant est le deuxième joueur.");
-        } else if (winner.get().equals(Owner.NONE) && gameOver().get()){
+        } else if (winner.get().equals(Owner.NONE) && gameOver().get()) {
             endOfGameMessage.set("Match Nul");
         }
         return endOfGameMessage;
     }
 
-    /**
-     * @return true si le jeu est terminé
-     * (soit un joueur a gagné, soit il n’y a plus de cases à jouer)
-     */
     public BooleanBinding gameOver() {
-        boolean isGameOver = !this.winner.get().equals(Owner.NONE) || count == BOARD_WIDTH * BOARD_HEIGHT;
-        return Bindings.createBooleanBinding( () -> isGameOver );
+        return Bindings.createBooleanBinding(() -> !winner.get().equals(Owner.NONE) || movesMade == TOTAL_SQUARES);
     }
 
     public static int getBoardHeight() {
         return BOARD_HEIGHT;
-    }
-
-    public static int getBoardWidth(){
-        return BOARD_WIDTH;
     }
 
     private Owner getWinner() {
