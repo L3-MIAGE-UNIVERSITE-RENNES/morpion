@@ -13,7 +13,7 @@ import javafx.scene.text.Font;
 public class TicTacToeSquare extends TextField {
     private static final TicTacToeModel model = TicTacToeModel.getInstance();
     private final ObjectProperty<Owner> owner = new SimpleObjectProperty<>(Owner.NONE);
-    private final BooleanProperty isWinningSquare = new SimpleBooleanProperty(false);
+    private final BooleanProperty winnerProperty = new SimpleBooleanProperty(false);
 
     public TicTacToeSquare(int row, int column) {
         initializeSquare();
@@ -50,7 +50,7 @@ public class TicTacToeSquare extends TextField {
 
     private void handleSquareClick(int row, int column) {
         if (model.legalMove(row, column).get()) {
-            setText(owner.get() == Owner.FIRST ? "X" : "O");
+            setText(ownerProperty().get() == Owner.FIRST ? "X" : "O");
             model.play(row, column);
         }
     }
@@ -62,5 +62,9 @@ public class TicTacToeSquare extends TextField {
 
     public ObjectProperty<Owner> ownerProperty() {
         return owner;
+    }
+
+    public BooleanProperty winnerProperty(){
+        return this.winnerProperty;
     }
 }
